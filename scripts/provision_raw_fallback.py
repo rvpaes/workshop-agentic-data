@@ -49,7 +49,13 @@ def gcloud_env() -> dict:
 
 
 def run_cmd(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, check=check, text=True, capture_output=True, env=gcloud_env())
+    res = subprocess.run(cmd, check=False, text=True, capture_output=True, env=gcloud_env())
+    if check and res.returncode != 0:
+        raise RuntimeError(
+            f"Comando falhou (exit {res.returncode}): {' '.join(cmd)}\n"
+            f"STDERR: {res.stderr.strip()}\nSTDOUT: {res.stdout.strip()}"
+        )
+    return res
 
 
 def get_access_token() -> str:
@@ -97,39 +103,56 @@ def sql_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
-def run_bq_job(project_id: str, region: str, sql: str, token: str) -> None:
-    job_id = f"raw_iceberg_{uuid.uuid4().hex[:12]}"
-    url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/jobs"
-    payload = {
-        "jobReference": {"projectId": project_id, "location": region, "jobId": job_id},
-        "configuration": {
-            "labels": {"datacloud": "antigravity", "layer": "raw", "format": "iceberg"},
-            "query": {"query": sql, "useLegacySql": False},
-        },
-    }
-    code, resp = api_json(url, token, project_id, method="POST", payload=payload)
-    if code not in (200, 201):
-        raise RuntimeError(f"Erro ao submeter job BigQuery ({code}): {resp}")
+def run_bq_job(project_id: str, region: str, sql: str, token: str, retries: int = 3) -> None:
+    last_err = None
+    for attempt in range(1, retries + 1):
+        job_id = f"raw_iceberg_{uuid.uuid4().hex[:12]}"
+        url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/jobs"
+        payload = {
+            "jobReference": {"projectId": project_id, "location": region, "jobId": job_id},
+            "configuration": {
+                "labels": {"datacloud": "antigravity", "layer": "raw", "format": "iceberg"},
+                "query": {"query": sql, "useLegacySql": False},
+            },
+        }
+        code, resp = api_json(url, token, project_id, method="POST", payload=payload)
+        if code not in (200, 201):
+            last_err = f"Erro ao submeter job BigQuery ({code}): {resp}"
+        else:
+            poll_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/jobs/{job_id}?location={region}"
+            while True:
+                p_code, p_resp = api_json(poll_url, token, project_id, method="GET")
+                if p_code != 200:
+                    last_err = f"Erro ao consultar status do job {job_id}: {p_resp}"
+                    break
+                state = p_resp.get("status", {}).get("state")
+                if state == "DONE":
+                    err = p_resp.get("status", {}).get("errorResult")
+                    if not err:
+                        return
+                    last_err = f"Job BigQuery {job_id} falhou: {err}"
+                    break
+                time.sleep(1.5)
 
-    poll_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/jobs/{job_id}?location={region}"
-    while True:
-        p_code, p_resp = api_json(poll_url, token, project_id, method="GET")
-        if p_code != 200:
-            raise RuntimeError(f"Erro ao consultar status do job {job_id}: {p_resp}")
-        state = p_resp.get("status", {}).get("state")
-        if state == "DONE":
-            err = p_resp.get("status", {}).get("errorResult")
-            if err:
-                raise RuntimeError(f"Job BigQuery {job_id} falhou: {err}")
-            return
-        time.sleep(1.5)
+        # Retry automatically if IAM propagation on GCS/BigLake connection is still settling
+        if attempt < retries and last_err and any(
+            kw in str(last_err).lower() for kw in ["access denied", "permission", "403", "not authorized", "rate"]
+        ):
+            time.sleep(15)
+            token = get_access_token()
+            continue
+        break
+
+    raise RuntimeError(last_err or "Falha desconhecida ao executar job BigQuery.")
 
 
-def ensure_connection(project_id: str, region: str, conn_id: str, token: str) -> str:
-    # BigQuery Connection Service REST API uses /v1/ (not /v2/)
+def ensure_connection(project_id: str, region: str, conn_id: str, token: str) -> tuple[str, bool]:
+    """Garante a Cloud Resource Connection e retorna (serviceAccountId, recem_criada)."""
     base = f"https://bigqueryconnection.googleapis.com/v1/projects/{project_id}/locations/{region}/connections"
     code, resp = api_json(f"{base}/{conn_id}", token, project_id, method="GET")
+    created_now = False
     if code == 404:
+        created_now = True
         create_payload = {
             "friendlyName": "Retail Open Lakehouse Iceberg Connection",
             "description": "Cloud Resource Connection for BigLake Managed Apache Iceberg tables.",
@@ -137,7 +160,6 @@ def ensure_connection(project_id: str, region: str, conn_id: str, token: str) ->
         }
         code, resp = api_json(f"{base}?connectionId={conn_id}", token, project_id, method="POST", payload=create_payload)
         if code not in (200, 201):
-            # Fallback via bq CLI if REST is restricted
             run_cmd([
                 "bq", "mk", "--connection",
                 "--connection_type=CLOUD_RESOURCE",
@@ -161,7 +183,38 @@ def ensure_connection(project_id: str, region: str, conn_id: str, token: str) ->
             sa_id = json.loads(show_res.stdout).get("cloudResource", {}).get("serviceAccountId")
     if not sa_id:
         raise RuntimeError(f"serviceAccountId ausente na conexão {conn_id}: {resp}")
-    return sa_id
+    return sa_id, created_now
+
+
+def bind_storage_iam_with_retry(project_id: str, bucket_name: str, sa_email: str) -> None:
+    """Vincula roles/storage.admin aguardando a materialização assíncrona da SA bqcx-* no IAM."""
+    last_stderr = ""
+    for attempt in range(1, 9):
+        # 1) Tenta binding direto no bucket via gcloud storage (sem --project para máxima compatibilidade de versões SDK)
+        b_res = run_cmd([
+            "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{bucket_name}",
+            f"--member=serviceAccount:{sa_email}",
+            "--role=roles/storage.admin",
+        ], check=False)
+        if b_res.returncode == 0:
+            return
+
+        last_stderr = b_res.stderr.strip()
+        # 2) Fallback: binding em nível de projeto (padrão oficial usado nos labs Qwiklabs de Iceberg)
+        p_res = run_cmd([
+            "gcloud", "projects", "add-iam-policy-binding", project_id,
+            f"--member=serviceAccount:{sa_email}",
+            "--role=roles/storage.admin",
+            "--condition=None",
+        ], check=False)
+        if p_res.returncode == 0:
+            return
+
+        last_stderr = f"Bucket IAM: {b_res.stderr.strip()} | Project IAM: {p_res.stderr.strip()}"
+        print(f"      [Tentativa {attempt}/8] Aguardando provisionamento da identidade '{sa_email}' no IAM global (8s)...")
+        time.sleep(8)
+
+    raise RuntimeError(f"Não foi possível conceder roles/storage.admin para {sa_email}:\n{last_stderr}")
 
 
 def ensure_dataset(project_id: str, region: str, dataset_id: str, description: str, token: str) -> None:
@@ -195,10 +248,18 @@ def sync_table_catalog_metadata(
     token: str,
 ) -> None:
     url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/datasets/{dataset_id}/tables/{tbl}"
+    code, current = api_json(url, token, project_id, method="GET")
+    if code != 200:
+        return
+    desc_map = {c["name"]: c.get("description", "") for c in meta["columns"]}
+    fields = current.get("schema", {}).get("fields", [])
+    for f in fields:
+        if f.get("name") in desc_map:
+            f["description"] = desc_map[f["name"]]
     patch_payload = {
         "description": meta.get("description", ""),
         "labels": {"datacloud": "antigravity", "layer": "raw", "format": "iceberg"},
-        "schema": {"fields": meta["columns"]},
+        "schema": {"fields": fields},
     }
     api_json(url, token, project_id, method="PATCH", payload=patch_payload)
 
@@ -237,8 +298,7 @@ def provision_one_table(
     tdesc = sql_escape(meta.get("description", ""))
     cols_sql = ",\n".join(col_defs)
 
-    # Note: BigLake Iceberg managed tables do not support TRUNCATE TABLE; use DELETE FROM ... WHERE TRUE;
-    ddl_and_load = f"""
+    ddl_sql = f"""
 CREATE TABLE IF NOT EXISTS `{project_id}.{dataset_id}.{tbl}` (
 {cols_sql}
 ){part_clause}{cluster_clause}
@@ -250,16 +310,18 @@ OPTIONS (
   description = "{tdesc}",
   labels = [('datacloud', 'antigravity'), ('layer', 'raw'), ('format', 'iceberg')]
 );
+"""
+    run_bq_job(project_id, region, ddl_sql, token, retries=4)
 
+    load_sql = f"""
 DELETE FROM `{project_id}.{dataset_id}.{tbl}` WHERE TRUE;
-
 LOAD DATA INTO `{project_id}.{dataset_id}.{tbl}`
 FROM FILES (
   format = 'PARQUET',
   uris = ['gs://{bucket_name}/staging/{tbl}.parquet']
 );
 """
-    run_bq_job(project_id, region, ddl_and_load, token)
+    run_bq_job(project_id, region, load_sql, token, retries=3)
     sync_table_catalog_metadata(project_id, dataset_id, tbl, meta, token)
 
     meta_status = "metadata exported"
@@ -269,9 +331,9 @@ FROM FILES (
             region,
             f"EXPORT TABLE METADATA FROM `{project_id}.{dataset_id}.{tbl}`;",
             token,
+            retries=1,
         )
     except Exception:
-        # Some sandbox/Qwiklabs orgs restrict EXPORT_METADATA Enterprise jobs; table remains 100% ready in BQ
         meta_status = "managed snapshot active"
 
     return tbl, meta["row_count"], meta_status
@@ -317,15 +379,14 @@ def main() -> None:
 
     token = get_access_token()
     print(f"[4/6] Configurando Cloud Resource Connection '{args.connection_id}' e permissões IAM...")
-    sa_email = ensure_connection(args.project_id, args.region, args.connection_id, token)
-    run_cmd([
-        "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{bucket_name}",
-        f"--member=serviceAccount:{sa_email}",
-        "--role=roles/storage.admin",
-        f"--project={args.project_id}",
-    ])
-    print(f"      Service Account '{sa_email}' vinculada. Aguardando 35s para propagação segura de IAM...")
-    time.sleep(35)
+    sa_email, created_now = ensure_connection(args.project_id, args.region, args.connection_id, token)
+    if created_now:
+        print(f"      Conexão recém-criada. Aguardando 5s para registro inicial da identidade '{sa_email}'...")
+        time.sleep(5)
+    bind_storage_iam_with_retry(args.project_id, bucket_name, sa_email)
+    wait_secs = 40 if created_now else 10
+    print(f"      Permissão roles/storage.admin vinculada para '{sa_email}'. Aguardando {wait_secs}s para propagação IAM...")
+    time.sleep(wait_secs)
 
     print(f"[5/6] Garantindo dataset '{args.dataset_id}' ({args.region}) já catalogado...")
     token = get_access_token()
