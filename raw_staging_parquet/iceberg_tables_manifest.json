@@ -1,0 +1,787 @@
+{
+  "dataset_default": "retail_raw",
+  "region_default": "us-central1",
+  "table_format": "ICEBERG",
+  "file_format": "PARQUET",
+  "tables": {
+    "customer_master": {
+      "parquet_file": "raw_staging_parquet/customer_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 99441,
+      "partition_by": null,
+      "cluster_by": [
+        "state_code",
+        "city",
+        "customer_id"
+      ],
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "STRING"
+        },
+        {
+          "name": "first_name",
+          "type": "STRING"
+        },
+        {
+          "name": "last_name",
+          "type": "STRING"
+        },
+        {
+          "name": "email",
+          "type": "STRING"
+        },
+        {
+          "name": "address",
+          "type": "STRING"
+        },
+        {
+          "name": "city",
+          "type": "STRING"
+        },
+        {
+          "name": "state_code",
+          "type": "STRING"
+        },
+        {
+          "name": "zip_code",
+          "type": "STRING"
+        },
+        {
+          "name": "country_code",
+          "type": "STRING"
+        },
+        {
+          "name": "phone_number",
+          "type": "STRING"
+        }
+      ]
+    },
+    "driver_master": {
+      "parquet_file": "raw_staging_parquet/driver_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 4,
+      "partition_by": null,
+      "cluster_by": [
+        "driver_id",
+        "employee_id"
+      ],
+      "columns": [
+        {
+          "name": "driver_id",
+          "type": "STRING"
+        },
+        {
+          "name": "employee_id",
+          "type": "STRING"
+        }
+      ]
+    },
+    "fleet_master": {
+      "parquet_file": "raw_staging_parquet/fleet_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 3,
+      "partition_by": null,
+      "cluster_by": [
+        "status",
+        "vehicle_id"
+      ],
+      "columns": [
+        {
+          "name": "vehicle_id",
+          "type": "STRING"
+        },
+        {
+          "name": "license_plate",
+          "type": "STRING"
+        },
+        {
+          "name": "vin",
+          "type": "STRING"
+        },
+        {
+          "name": "model",
+          "type": "STRING"
+        },
+        {
+          "name": "status",
+          "type": "STRING"
+        }
+      ]
+    },
+    "forecast_override_configs": {
+      "parquet_file": "raw_staging_parquet/forecast_override_configs.parquet",
+      "source_shards_merged": 1,
+      "row_count": 6,
+      "partition_by": "last_update_date",
+      "cluster_by": [
+        "item_number",
+        "omni_item_id"
+      ],
+      "columns": [
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "demand_surge_multiplier",
+          "type": "STRING"
+        },
+        {
+          "name": "demand_slump_multiplier",
+          "type": "STRING"
+        },
+        {
+          "name": "last_update_date",
+          "type": "DATE"
+        },
+        {
+          "name": "last_updated_by",
+          "type": "STRING"
+        }
+      ]
+    },
+    "location_master": {
+      "parquet_file": "raw_staging_parquet/location_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 4,
+      "partition_by": null,
+      "cluster_by": [
+        "location_type",
+        "state_code",
+        "location_id"
+      ],
+      "columns": [
+        {
+          "name": "location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "location_name",
+          "type": "STRING"
+        },
+        {
+          "name": "location_type",
+          "type": "STRING"
+        },
+        {
+          "name": "address",
+          "type": "STRING"
+        },
+        {
+          "name": "city",
+          "type": "STRING"
+        },
+        {
+          "name": "state_code",
+          "type": "STRING"
+        },
+        {
+          "name": "zip_code",
+          "type": "STRING"
+        },
+        {
+          "name": "country_code",
+          "type": "STRING"
+        },
+        {
+          "name": "phone_number",
+          "type": "STRING"
+        }
+      ]
+    },
+    "pos_transaction_items": {
+      "parquet_file": "raw_staging_parquet/pos_transaction_items.parquet",
+      "source_shards_merged": 1,
+      "row_count": 2467,
+      "partition_by": null,
+      "cluster_by": [
+        "transaction_id",
+        "item_number"
+      ],
+      "columns": [
+        {
+          "name": "transaction_id",
+          "type": "STRING"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity",
+          "type": "STRING"
+        },
+        {
+          "name": "price",
+          "type": "STRING"
+        },
+        {
+          "name": "line_item_total",
+          "type": "STRING"
+        }
+      ]
+    },
+    "pos_transactions": {
+      "parquet_file": "raw_staging_parquet/pos_transactions.parquet",
+      "source_shards_merged": 1,
+      "row_count": 2467,
+      "partition_by": "transaction_date",
+      "cluster_by": [
+        "location_id",
+        "customer_id",
+        "transaction_status"
+      ],
+      "columns": [
+        {
+          "name": "transaction_id",
+          "type": "STRING"
+        },
+        {
+          "name": "location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "customer_id",
+          "type": "STRING"
+        },
+        {
+          "name": "transaction_status",
+          "type": "STRING"
+        },
+        {
+          "name": "transaction_date",
+          "type": "DATE"
+        },
+        {
+          "name": "payment_type",
+          "type": "STRING"
+        },
+        {
+          "name": "payment_total_dollar",
+          "type": "STRING"
+        }
+      ]
+    },
+    "product_docs_ref_data": {
+      "parquet_file": "raw_staging_parquet/product_docs_ref_data.parquet",
+      "source_shards_merged": 1,
+      "row_count": 64,
+      "partition_by": null,
+      "cluster_by": [
+        "item_number",
+        "brand",
+        "product_doc_type"
+      ],
+      "columns": [
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "brand",
+          "type": "STRING"
+        },
+        {
+          "name": "model_id",
+          "type": "STRING"
+        },
+        {
+          "name": "pdf_name",
+          "type": "STRING"
+        },
+        {
+          "name": "product_doc_type",
+          "type": "STRING"
+        },
+        {
+          "name": "product_doc_gcs_uri",
+          "type": "STRING"
+        }
+      ]
+    },
+    "product_master": {
+      "parquet_file": "raw_staging_parquet/product_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 35,
+      "partition_by": null,
+      "cluster_by": [
+        "appliance_type",
+        "brand",
+        "item_number"
+      ],
+      "columns": [
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "appliance_type",
+          "type": "STRING"
+        },
+        {
+          "name": "appliance_sub_type",
+          "type": "STRING"
+        },
+        {
+          "name": "brand",
+          "type": "STRING"
+        },
+        {
+          "name": "model_id",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "description",
+          "type": "STRING"
+        },
+        {
+          "name": "price",
+          "type": "STRING"
+        },
+        {
+          "name": "product_image_gcs_uri",
+          "type": "STRING"
+        },
+        {
+          "name": "is_active",
+          "type": "STRING"
+        }
+      ]
+    },
+    "product_suppliers": {
+      "parquet_file": "raw_staging_parquet/product_suppliers.parquet",
+      "source_shards_merged": 1,
+      "row_count": 35,
+      "partition_by": null,
+      "cluster_by": [
+        "item_number",
+        "supplier_id"
+      ],
+      "columns": [
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "supplier_id",
+          "type": "STRING"
+        },
+        {
+          "name": "supplier_type",
+          "type": "STRING"
+        },
+        {
+          "name": "lead_days_to_delivery",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_master": {
+      "parquet_file": "raw_staging_parquet/stock_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 150,
+      "partition_by": "stock_date",
+      "cluster_by": [
+        "item_number",
+        "omni_item_id"
+      ],
+      "columns": [
+        {
+          "name": "stock_date",
+          "type": "DATE"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity_on_hand",
+          "type": "STRING"
+        },
+        {
+          "name": "reorder_point",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_master_location": {
+      "parquet_file": "raw_staging_parquet/stock_master_location.parquet",
+      "source_shards_merged": 1,
+      "row_count": 720,
+      "partition_by": "stock_date",
+      "cluster_by": [
+        "location_id",
+        "item_number"
+      ],
+      "columns": [
+        {
+          "name": "stock_date",
+          "type": "DATE"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity_on_hand",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_movement": {
+      "parquet_file": "raw_staging_parquet/stock_movement.parquet",
+      "source_shards_merged": 1,
+      "row_count": 1390,
+      "partition_by": "movement_date",
+      "cluster_by": [
+        "location_id",
+        "item_number",
+        "movement_type"
+      ],
+      "columns": [
+        {
+          "name": "movement_date",
+          "type": "DATE"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "movement_type",
+          "type": "STRING"
+        },
+        {
+          "name": "location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity_change",
+          "type": "STRING"
+        },
+        {
+          "name": "reference_id",
+          "type": "STRING"
+        },
+        {
+          "name": "reference_id_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_purchase_order_items": {
+      "parquet_file": "raw_staging_parquet/stock_purchase_order_items.parquet",
+      "source_shards_merged": 5,
+      "row_count": 21,
+      "partition_by": null,
+      "cluster_by": [
+        "po_id",
+        "item_number"
+      ],
+      "columns": [
+        {
+          "name": "po_id",
+          "type": "STRING"
+        },
+        {
+          "name": "line_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity_ordered",
+          "type": "STRING"
+        },
+        {
+          "name": "unit_price",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_purchase_orders": {
+      "parquet_file": "raw_staging_parquet/stock_purchase_orders.parquet",
+      "source_shards_merged": 3,
+      "row_count": 14,
+      "partition_by": "order_date",
+      "cluster_by": [
+        "supplier_id",
+        "order_status"
+      ],
+      "columns": [
+        {
+          "name": "po_id",
+          "type": "STRING"
+        },
+        {
+          "name": "supplier_id",
+          "type": "STRING"
+        },
+        {
+          "name": "order_date",
+          "type": "DATE"
+        },
+        {
+          "name": "expected_date",
+          "type": "STRING"
+        },
+        {
+          "name": "received_date",
+          "type": "STRING"
+        },
+        {
+          "name": "total_cost",
+          "type": "STRING"
+        },
+        {
+          "name": "order_status",
+          "type": "STRING"
+        },
+        {
+          "name": "order_comment",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_thresholds": {
+      "parquet_file": "raw_staging_parquet/stock_thresholds.parquet",
+      "source_shards_merged": 1,
+      "row_count": 35,
+      "partition_by": "last_updated_date",
+      "cluster_by": [
+        "item_number",
+        "is_current"
+      ],
+      "columns": [
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "stock_on_hand_across_stores",
+          "type": "STRING"
+        },
+        {
+          "name": "stock_at_each_store",
+          "type": "STRING"
+        },
+        {
+          "name": "total_stock_at_stores",
+          "type": "STRING"
+        },
+        {
+          "name": "total_stock_at_warehouse",
+          "type": "STRING"
+        },
+        {
+          "name": "average_sold_per_day_per_store",
+          "type": "STRING"
+        },
+        {
+          "name": "avg_sold_per_day_total",
+          "type": "STRING"
+        },
+        {
+          "name": "safety_stock_per_store",
+          "type": "STRING"
+        },
+        {
+          "name": "safety_stock_total",
+          "type": "STRING"
+        },
+        {
+          "name": "reorder_point_per_store",
+          "type": "STRING"
+        },
+        {
+          "name": "reorder_point_total",
+          "type": "STRING"
+        },
+        {
+          "name": "last_updated_date",
+          "type": "DATE"
+        },
+        {
+          "name": "is_current",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_transfer_order_items": {
+      "parquet_file": "raw_staging_parquet/stock_transfer_order_items.parquet",
+      "source_shards_merged": 3,
+      "row_count": 508,
+      "partition_by": null,
+      "cluster_by": [
+        "stock_transfer_order_id",
+        "item_number"
+      ],
+      "columns": [
+        {
+          "name": "stock_transfer_order_id",
+          "type": "STRING"
+        },
+        {
+          "name": "item_number",
+          "type": "STRING"
+        },
+        {
+          "name": "omni_item_id",
+          "type": "STRING"
+        },
+        {
+          "name": "quantity",
+          "type": "STRING"
+        }
+      ]
+    },
+    "stock_transfer_orders": {
+      "parquet_file": "raw_staging_parquet/stock_transfer_orders.parquet",
+      "source_shards_merged": 2,
+      "row_count": 99,
+      "partition_by": "transfer_order_date",
+      "cluster_by": [
+        "from_location_id",
+        "to_location_id",
+        "status"
+      ],
+      "columns": [
+        {
+          "name": "stock_transfer_order_id",
+          "type": "STRING"
+        },
+        {
+          "name": "from_location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "to_location_id",
+          "type": "STRING"
+        },
+        {
+          "name": "status",
+          "type": "STRING"
+        },
+        {
+          "name": "vehicle_id",
+          "type": "STRING"
+        },
+        {
+          "name": "reference_id",
+          "type": "STRING"
+        },
+        {
+          "name": "reference_id_type",
+          "type": "STRING"
+        },
+        {
+          "name": "transfer_type",
+          "type": "STRING"
+        },
+        {
+          "name": "transfer_order_date",
+          "type": "DATE"
+        },
+        {
+          "name": "fulfillment_date",
+          "type": "STRING"
+        }
+      ]
+    },
+    "supplier_master": {
+      "parquet_file": "raw_staging_parquet/supplier_master.parquet",
+      "source_shards_merged": 1,
+      "row_count": 4,
+      "partition_by": null,
+      "cluster_by": [
+        "state_code",
+        "supplier_id"
+      ],
+      "columns": [
+        {
+          "name": "supplier_id",
+          "type": "STRING"
+        },
+        {
+          "name": "supplier_name",
+          "type": "STRING"
+        },
+        {
+          "name": "contact_name",
+          "type": "STRING"
+        },
+        {
+          "name": "contact_email",
+          "type": "STRING"
+        },
+        {
+          "name": "address",
+          "type": "STRING"
+        },
+        {
+          "name": "city",
+          "type": "STRING"
+        },
+        {
+          "name": "state_code",
+          "type": "STRING"
+        },
+        {
+          "name": "zip_cd",
+          "type": "STRING"
+        },
+        {
+          "name": "country_code",
+          "type": "STRING"
+        },
+        {
+          "name": "phone_number",
+          "type": "STRING"
+        }
+      ]
+    }
+  }
+}
