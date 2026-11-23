@@ -5,3 +5,8 @@ __pycache__/
 .venv/
 venv/
 *.tmp
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/crash.log

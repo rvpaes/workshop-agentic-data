@@ -1,6 +1,30 @@
-# Workshop Agentic Data — Retail Open Lakehouse (`raw_staging_parquet`)
+# Workshop Agentic Data — Retail Open Lakehouse (`raw_staging_parquet` + Terraform)
 
-Repositório de dados brutos (**Camada Raw Iceberg-Ready**) para o workshop hands-on de produtividade em Engenharia e Ciência de Dados com **Google Antigravity**, **Data Agent Kit**, **BigQuery Studio Pipelines**, **BigLake Apache Iceberg** e **Knowledge Catalog**.
+Repositório de bootstrap da **Camada Raw Iceberg-Ready** para o workshop hands-on de produtividade em Engenharia e Ciência de Dados com **Google Antigravity**, **Data Agent Kit**, **BigQuery Studio Pipelines**, **BigLake Apache Iceberg** e **Knowledge Catalog**.
+
+---
+
+## Provisionamento em 1 Comando (Via Terminal)
+
+Para criar automaticamente o bucket GCS, a conexão BigLake, o dataset `retail_raw` e carregar as **19 tabelas BigLake Apache Iceberg** (já particionadas, clusterizadas, com snapshots `metadata.json` exportados e **100% das 19 tabelas e 136 colunas catalogadas com descrições de negócio**):
+
+```bash
+git clone https://github.com/rvpaes/workshop-agentic-data.git && cd workshop-agentic-data && ./setup_raw.sh
+```
+
+> **Opções suportadas pelo `setup_raw.sh`:**
+> * `./setup_raw.sh` — Detecta automaticamente o `PROJECT_ID` (`config.json` ou `gcloud config get-value project`) e executa via **Terraform** (`terraform/`) se instalado (ex: Cloud Shell), ou faz fallback paralelo automático via **GCP APIs/CLI** (`scripts/provision_raw_fallback.py`) em máquinas locais sem Terraform.
+> * `./setup_raw.sh SEU_PROJECT_ID` — Define explicitamente o projeto alvo.
+> * `./setup_raw.sh --cli` — Força o provisionamento paralelo direto via CLI/API mesmo se o Terraform estiver instalado.
+> * `./setup_raw.sh --destroy` — Remove toda a infraestrutura da camada Raw gerenciada pelo Terraform.
+
+### Uso Direto via Terraform Puro (Opcional)
+
+```bash
+cd terraform
+terraform init
+terraform apply -auto-approve -var="project_id=SEU_PROJECT_ID"
+```
 
 ---
 
@@ -9,19 +33,18 @@ Repositório de dados brutos (**Camada Raw Iceberg-Ready**) para o workshop hand
 ```text
 workshop-agentic-data/
 ├── README.md
+├── setup_raw.sh                        # Bootstrap em 1 comando (Terraform com fallback automático CLI/API)
+├── terraform/                          # Infraestrutura como Código (IaC) declarativa da Camada Raw Iceberg
+│   ├── versions.tf
+│   ├── variables.tf
+│   ├── main.tf                         # Bucket, Connection, IAM, Dataset, 19 tabelas Iceberg e Jobs de carga
+│   └── outputs.tf
+├── scripts/
+│   └── provision_raw_fallback.py       # Provisionador paralelo sem dependências externas (quando TF ausente)
 └── raw_staging_parquet/
-    ├── iceberg_tables_manifest.json    # Manifesto declarativo (schemas, PARTITION BY e CLUSTER BY das 19 tabelas)
-    └── *.parquet                       # 19 arquivos Parquet SNAPPY unificados prontos para carga em BigLake Iceberg
+    ├── iceberg_tables_manifest.json    # Manifesto declarativo (schemas, descrições, PARTITION BY e CLUSTER BY)
+    └── *.parquet                       # 19 arquivos Parquet SNAPPY unificados prontos para BigLake Iceberg
 ```
-
-## Por que este pacote é "Iceberg-Ready"?
-
-1. **Shards já unificados em Parquet (`SNAPPY`):** Os 28 shards originais de domínio de varejo (PDV, estoque, compras, transferências, frota, fornecedores, produtos e clientes) foram consolidados em **19 arquivos `.parquet`** únicos e leves.
-2. **Pronto para `PARTITION BY` + `CLUSTER BY` no BigLake Iceberg:**
-   - Tabelas BigLake Apache Iceberg no BigQuery não permitem evolução de partição após criadas e exigem colunas `DATE`, `DATETIME` ou `TIMESTAMP` na cláusula `PARTITION BY`.
-   - As **8 tabelas temporais** já possuem exclusivamente sua coluna de partição tipada como `DATE` (`DATE32` no Parquet), mantendo **todas as demais colunas brutas como `STRING`** (preservando dados brutos, zeros à esquerda e anomalias reais de negócio — como `zip_cd` vs `zip_code` e `received_date` nulo em pedidos `PENDING` — para serem tratadas nos pipelines posteriores).
-   - As **11 tabelas cadastrais e de itens** possuem todas as colunas como `STRING` e especificação de `CLUSTER BY` para *block pruning* automático nos arquivos Parquet do Iceberg.
-3. **Manifesto Declarativo (`iceberg_tables_manifest.json`):** Contém a lista exata das 19 tabelas, contagem esperada de linhas, schema (`DATE` / `STRING`), coluna de `partition_by` e colunas de `cluster_by` para provisionamento automatizado e determinístico no BigQuery.
 
 ---
 

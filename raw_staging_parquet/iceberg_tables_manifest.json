@@ -17,45 +17,66 @@
       "columns": [
         {
           "name": "customer_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único hash do cliente na plataforma de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "first_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Primeiro nome do cliente cadastrado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "last_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Sobrenome do cliente cadastrado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "email",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Endereço de e-mail principal do cliente para contato e notificações.",
+          "mode": "NULLABLE"
         },
         {
           "name": "address",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Logradouro, número e complemento do endereço físico.",
+          "mode": "NULLABLE"
         },
         {
           "name": "city",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome do município/cidade do endereço.",
+          "mode": "NULLABLE"
         },
         {
           "name": "state_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Sigla da unidade federativa/estado norte-americano (ex: IL, WI).",
+          "mode": "NULLABLE"
         },
         {
           "name": "zip_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código de endereçamento postal (ZIP Code) padronizado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "country_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código ISO do país (ex: USA).",
+          "mode": "NULLABLE"
         },
         {
           "name": "phone_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Número de telefone de contato no formato bruto.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cadastro bruto de clientes do varejo omnichannel, contendo dados de identificação, contato e endereço residencial."
     },
     "driver_master": {
       "parquet_file": "raw_staging_parquet/driver_master.parquet",
@@ -69,13 +90,18 @@
       "columns": [
         {
           "name": "driver_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único do motorista na malha logística.",
+          "mode": "NULLABLE"
         },
         {
           "name": "employee_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Matrícula funcional do colaborador motorista no sistema de RH.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cadastro bruto de motoristas responsáveis pelas entregas e transferências logísticas entre centros de distribuição e lojas."
     },
     "fleet_master": {
       "parquet_file": "raw_staging_parquet/fleet_master.parquet",
@@ -89,25 +115,36 @@
       "columns": [
         {
           "name": "vehicle_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único ou apelido operacional do veículo da frota.",
+          "mode": "NULLABLE"
         },
         {
           "name": "license_plate",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Placa oficial de licenciamento do veículo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "vin",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Número de identificação veicular (chassi/VIN de 17 caracteres).",
+          "mode": "NULLABLE"
         },
         {
           "name": "model",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Marca, modelo e ano de fabricação do caminhão/utilitário da frota.",
+          "mode": "NULLABLE"
         },
         {
           "name": "status",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Status operacional atual do registro (ex: ACTIVE, MAINTENANCE, DELIVERED, IN_TRANSIT).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cadastro bruto da frota de veículos próprios utilizada nas operações logísticas e transferências de estoque."
     },
     "forecast_override_configs": {
       "parquet_file": "raw_staging_parquet/forecast_override_configs.parquet",
@@ -121,29 +158,42 @@
       "columns": [
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "demand_surge_multiplier",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Fator multiplicador aplicado à previsão de demanda em cenários promocionais ou picos sazonais.",
+          "mode": "NULLABLE"
         },
         {
           "name": "demand_slump_multiplier",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Fator multiplicador redutor aplicado à previsão de demanda em cenários de retração.",
+          "mode": "NULLABLE"
         },
         {
           "name": "last_update_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data da última atualização da regra de override de demanda (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "last_updated_by",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Papel ou usuário responsável pela última alteração do parâmetro.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Parâmetros brutos de ajuste manual de demanda (multiplicadores de pico e retração) definidos pelo time de Demand Planning por SKU."
     },
     "location_master": {
       "parquet_file": "raw_staging_parquet/location_master.parquet",
@@ -158,41 +208,60 @@
       "columns": [
         {
           "name": "location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código identificador único da unidade física (loja ou centro de distribuição).",
+          "mode": "NULLABLE"
         },
         {
           "name": "location_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome comercial da loja ou centro de distribuição.",
+          "mode": "NULLABLE"
         },
         {
           "name": "location_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Tipo da unidade física na rede (ex: STORE para loja ou WAREHOUSE para CD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "address",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Logradouro, número e complemento do endereço físico.",
+          "mode": "NULLABLE"
         },
         {
           "name": "city",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome do município/cidade do endereço.",
+          "mode": "NULLABLE"
         },
         {
           "name": "state_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Sigla da unidade federativa/estado norte-americano (ex: IL, WI).",
+          "mode": "NULLABLE"
         },
         {
           "name": "zip_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código de endereçamento postal (ZIP Code) padronizado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "country_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código ISO do país (ex: USA).",
+          "mode": "NULLABLE"
         },
         {
           "name": "phone_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Número de telefone de contato no formato bruto.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cadastro bruto de unidades físicas da rede varejista, abrangendo lojas (Store) e centros de distribuição (Warehouse)."
     },
     "pos_transaction_items": {
       "parquet_file": "raw_staging_parquet/pos_transaction_items.parquet",
@@ -206,29 +275,42 @@
       "columns": [
         {
           "name": "transaction_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único global (UUID) da transação de venda no PDV.",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Quantidade de unidades movimentadas ou comercializadas no item.",
+          "mode": "NULLABLE"
         },
         {
           "name": "price",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Preço unitário bruto praticado ou preço de lista do produto em dólares (USD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "line_item_total",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Valor financeiro bruto total da linha do item na transação (quantidade x preço unitário).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Itens vendidos por transação de Ponto de Venda (PDV), detalhando SKU, quantidade, preço unitário e valor total da linha."
     },
     "pos_transactions": {
       "parquet_file": "raw_staging_parquet/pos_transactions.parquet",
@@ -243,33 +325,48 @@
       "columns": [
         {
           "name": "transaction_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único global (UUID) da transação de venda no PDV.",
+          "mode": "NULLABLE"
         },
         {
           "name": "location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código identificador único da unidade física (loja ou centro de distribuição).",
+          "mode": "NULLABLE"
         },
         {
           "name": "customer_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único hash do cliente na plataforma de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "transaction_status",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Natureza/status da transação no PDV (ex: SALE, RETURN).",
+          "mode": "NULLABLE"
         },
         {
           "name": "transaction_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data contábil de realização da transação no PDV (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "payment_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Meio de pagamento utilizado pelo cliente no fechamento da compra (ex: CASH, CREDIT_CARD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "payment_total_dollar",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Valor total pago na transação de PDV em dólares (USD).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cabeçalho bruto das transações de vendas e devoluções registradas nos Pontos de Venda (PDV) das lojas físicas."
     },
     "product_docs_ref_data": {
       "parquet_file": "raw_staging_parquet/product_docs_ref_data.parquet",
@@ -284,29 +381,42 @@
       "columns": [
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "brand",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Marca fabricante do eletrodoméstico (ex: LG, SAMSUNG, FRIGIDAIRE, WHIRLPOOL).",
+          "mode": "NULLABLE"
         },
         {
           "name": "model_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código de modelo técnico definido pelo fabricante.",
+          "mode": "NULLABLE"
         },
         {
           "name": "pdf_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome do arquivo PDF do manual ou guia técnico do produto.",
+          "mode": "NULLABLE"
         },
         {
           "name": "product_doc_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Categoria documental do arquivo técnico (ex: USER_GUIDE, SPEC_SHEET).",
+          "mode": "NULLABLE"
         },
         {
           "name": "product_doc_gcs_uri",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Caminho completo (gs://) do documento PDF no Google Cloud Storage.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Catálogo bruto de referência de manuais técnicos e guias de usuário em PDF armazenados no Cloud Storage por modelo de eletrodoméstico."
     },
     "product_master": {
       "parquet_file": "raw_staging_parquet/product_master.parquet",
@@ -321,45 +431,66 @@
       "columns": [
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "appliance_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Categoria principal do eletrodoméstico (ex: REFRIGERATOR).",
+          "mode": "NULLABLE"
         },
         {
           "name": "appliance_sub_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Subcategoria ou configuração construtiva do refrigerador (ex: FRENCH_DOOR, SIDE_BY_SIDE, TOP_FREEZER).",
+          "mode": "NULLABLE"
         },
         {
           "name": "brand",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Marca fabricante do eletrodoméstico (ex: LG, SAMSUNG, FRIGIDAIRE, WHIRLPOOL).",
+          "mode": "NULLABLE"
         },
         {
           "name": "model_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código de modelo técnico definido pelo fabricante.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "description",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Descrição comercial detalhada das características técnicas e acabamento do produto.",
+          "mode": "NULLABLE"
         },
         {
           "name": "price",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Preço unitário bruto praticado ou preço de lista do produto em dólares (USD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "product_image_gcs_uri",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Caminho completo (gs://) da imagem oficial do produto no Google Cloud Storage.",
+          "mode": "NULLABLE"
         },
         {
           "name": "is_active",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Indicador bruto de produto ativo em linha comercial (Y/N).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Catálogo mestre bruto de produtos (eletrodomésticos/refrigeradores), com marca, categoria, descrição comercial, preço de tabela e URI de imagem."
     },
     "product_suppliers": {
       "parquet_file": "raw_staging_parquet/product_suppliers.parquet",
@@ -373,25 +504,36 @@
       "columns": [
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "supplier_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único do fornecedor/fabricante homologado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "supplier_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Classificação de prioridade comercial do fornecedor para o SKU (ex: PRIMARY, SECONDARY).",
+          "mode": "NULLABLE"
         },
         {
           "name": "lead_days_to_delivery",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Prazo médio contratual de entrega (lead time em dias corridos) do fornecedor.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Relacionamento bruto entre produtos (SKUs) e fornecedores homologados, incluindo classificação do fornecedor e lead time de entrega em dias."
     },
     "stock_master": {
       "parquet_file": "raw_staging_parquet/stock_master.parquet",
@@ -405,25 +547,36 @@
       "columns": [
         {
           "name": "stock_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data de referência da fotografia diária do saldo de estoque (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity_on_hand",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Saldo físico total disponível em estoque na data de referência.",
+          "mode": "NULLABLE"
         },
         {
           "name": "reorder_point",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Quantidade limite de ponto de pedido que dispara necessidade de ressuprimento.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Posição diária consolidada de estoque físico na rede por SKU, acompanhada do ponto global de ressuprimento."
     },
     "stock_master_location": {
       "parquet_file": "raw_staging_parquet/stock_master_location.parquet",
@@ -437,25 +590,36 @@
       "columns": [
         {
           "name": "stock_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data de referência da fotografia diária do saldo de estoque (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código identificador único da unidade física (loja ou centro de distribuição).",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity_on_hand",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Saldo físico total disponível em estoque na data de referência.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Posição diária de saldo de estoque físico disponível aberta por unidade física (loja ou centro de distribuição) e SKU."
     },
     "stock_movement": {
       "parquet_file": "raw_staging_parquet/stock_movement.parquet",
@@ -470,37 +634,54 @@
       "columns": [
         {
           "name": "movement_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data efetiva da movimentação física de estoque (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "movement_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Tipo operacional do movimento de estoque (ex: SALE, PURCHASE_RECEIPT, TRANSFER_IN, TRANSFER_OUT, INITIAL_STOCK_FROM_WAREHOUSE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código identificador único da unidade física (loja ou centro de distribuição).",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity_change",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Variação líquida de unidades aplicadas ao saldo de estoque (positiva para entradas, negativa para saídas).",
+          "mode": "NULLABLE"
         },
         {
           "name": "reference_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador do documento originador da movimentação (ID da transação PDV, PO ou Transfer Order).",
+          "mode": "NULLABLE"
         },
         {
           "name": "reference_id_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Tipo do documento de origem vinculado à movimentação física.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Histórico bruto de movimentações físicas de estoque (entradas de compra, vendas PDV, transferências e ajustes) por data, local e documento de origem."
     },
     "stock_purchase_order_items": {
       "parquet_file": "raw_staging_parquet/stock_purchase_order_items.parquet",
@@ -514,29 +695,42 @@
       "columns": [
         {
           "name": "po_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único global (UUID) do pedido de compra emitido ao fornecedor.",
+          "mode": "NULLABLE"
         },
         {
           "name": "line_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador sequencial da linha de item dentro do pedido de compra.",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity_ordered",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Quantidade de unidades solicitadas ao fornecedor na linha do pedido de compra.",
+          "mode": "NULLABLE"
         },
         {
           "name": "unit_price",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Custo unitário de aquisição negociado com o fornecedor em dólares (USD).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Itens detalhados dos pedidos de compra (Purchase Orders) emitidos junto aos fabricantes e fornecedores de eletrodomésticos."
     },
     "stock_purchase_orders": {
       "parquet_file": "raw_staging_parquet/stock_purchase_orders.parquet",
@@ -550,37 +744,54 @@
       "columns": [
         {
           "name": "po_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único global (UUID) do pedido de compra emitido ao fornecedor.",
+          "mode": "NULLABLE"
         },
         {
           "name": "supplier_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único do fornecedor/fabricante homologado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "order_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data de emissão do pedido de compra junto ao fornecedor (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "expected_date",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Data prevista de recebimento físico da mercadoria acordada com o fornecedor.",
+          "mode": "NULLABLE"
         },
         {
           "name": "received_date",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Data efetiva de recebimento físico no CD (nulo/vazio enquanto o pedido estiver PENDING).",
+          "mode": "NULLABLE"
         },
         {
           "name": "total_cost",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Custo financeiro total do pedido de compra em dólares (USD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "order_status",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Status do ciclo de vida do pedido de compra (ex: FULFILLED, PENDING, IN_TRANSIT).",
+          "mode": "NULLABLE"
         },
         {
           "name": "order_comment",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Observação operacional ou motivo de emissão do pedido de compra.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cabeçalho bruto dos pedidos de compra (POs) de abastecimento emitidos aos fornecedores, com datas previstas/recebidas, custo total e status."
     },
     "stock_thresholds": {
       "parquet_file": "raw_staging_parquet/stock_thresholds.parquet",
@@ -594,61 +805,90 @@
       "columns": [
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "stock_on_hand_across_stores",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Meta/referência combinada de estoque disponível somando lojas e CD.",
+          "mode": "NULLABLE"
         },
         {
           "name": "stock_at_each_store",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Estoque alvo padrão alocado individualmente por loja física.",
+          "mode": "NULLABLE"
         },
         {
           "name": "total_stock_at_stores",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Soma do estoque padrão alocado no conjunto de lojas físicas.",
+          "mode": "NULLABLE"
         },
         {
           "name": "total_stock_at_warehouse",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Estoque pulmão padrão mantido no centro de distribuição.",
+          "mode": "NULLABLE"
         },
         {
           "name": "average_sold_per_day_per_store",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Venda média diária histórica esperada por loja física para o SKU.",
+          "mode": "NULLABLE"
         },
         {
           "name": "avg_sold_per_day_total",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Venda média diária histórica consolidada em toda a rede para o SKU.",
+          "mode": "NULLABLE"
         },
         {
           "name": "safety_stock_per_store",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Estoque mínimo de segurança parametrizado por loja física para evitar ruptura.",
+          "mode": "NULLABLE"
         },
         {
           "name": "safety_stock_total",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Estoque mínimo de segurança consolidado em toda a rede.",
+          "mode": "NULLABLE"
         },
         {
           "name": "reorder_point_per_store",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Ponto de ressuprimento parametrizado por loja física considerando giro e lead time.",
+          "mode": "NULLABLE"
         },
         {
           "name": "reorder_point_total",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Ponto de ressuprimento consolidado da rede para acionamento de compras.",
+          "mode": "NULLABLE"
         },
         {
           "name": "last_updated_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data da última revisão da política de estoques e limites operacionais (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "is_current",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Flag indicando se o registro representa a política vigente atual (Y/N).",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Parâmetros operacionais de estoque de segurança, giro médio diário e ponto de pedido (reorder point) por loja e consolidado por SKU."
     },
     "stock_transfer_order_items": {
       "parquet_file": "raw_staging_parquet/stock_transfer_order_items.parquet",
@@ -662,21 +902,30 @@
       "columns": [
         {
           "name": "stock_transfer_order_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único (UUID) da ordem de transferência interna entre unidades.",
+          "mode": "NULLABLE"
         },
         {
           "name": "item_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código SKU mestre do produto no catálogo interno de varejo.",
+          "mode": "NULLABLE"
         },
         {
           "name": "omni_item_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador omnichannel do item combinando modelo e variação regional/acabamento.",
+          "mode": "NULLABLE"
         },
         {
           "name": "quantity",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Quantidade de unidades movimentadas ou comercializadas no item.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Itens e quantidades solicitadas nas ordens de transferência interna de estoque entre centros de distribuição e lojas."
     },
     "stock_transfer_orders": {
       "parquet_file": "raw_staging_parquet/stock_transfer_orders.parquet",
@@ -691,45 +940,66 @@
       "columns": [
         {
           "name": "stock_transfer_order_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único (UUID) da ordem de transferência interna entre unidades.",
+          "mode": "NULLABLE"
         },
         {
           "name": "from_location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código da unidade física remetente (origem da mercadoria, geralmente CD).",
+          "mode": "NULLABLE"
         },
         {
           "name": "to_location_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código da unidade física destinatária (destino da mercadoria, geralmente loja).",
+          "mode": "NULLABLE"
         },
         {
           "name": "status",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Status operacional atual do registro (ex: ACTIVE, MAINTENANCE, DELIVERED, IN_TRANSIT).",
+          "mode": "NULLABLE"
         },
         {
           "name": "vehicle_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único ou apelido operacional do veículo da frota.",
+          "mode": "NULLABLE"
         },
         {
           "name": "reference_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador do documento originador da movimentação (ID da transação PDV, PO ou Transfer Order).",
+          "mode": "NULLABLE"
         },
         {
           "name": "reference_id_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Tipo do documento de origem vinculado à movimentação física.",
+          "mode": "NULLABLE"
         },
         {
           "name": "transfer_type",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Modalidade operacional da transferência interna (ex: INITIAL_STOCK_DELIVERY_FROM_WAREHOUSE, STORE_REPLENISHMENT).",
+          "mode": "NULLABLE"
         },
         {
           "name": "transfer_order_date",
-          "type": "DATE"
+          "type": "DATE",
+          "description": "Data de abertura/emissão da ordem de transferência interna (coluna de partição DATE).",
+          "mode": "NULLABLE"
         },
         {
           "name": "fulfillment_date",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Data efetiva de conclusão/entrega da transferência na unidade de destino.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cabeçalho bruto das ordens de transferência interna de mercadorias entre unidades da rede, com origem, destino, veículo alocado e datas."
     },
     "supplier_master": {
       "parquet_file": "raw_staging_parquet/supplier_master.parquet",
@@ -743,45 +1013,67 @@
       "columns": [
         {
           "name": "supplier_id",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Identificador único do fornecedor/fabricante homologado.",
+          "mode": "NULLABLE"
         },
         {
           "name": "supplier_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Razão social ou nome fantasia do fornecedor/fabricante.",
+          "mode": "NULLABLE"
         },
         {
           "name": "contact_name",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome do executivo de contas responsável pelo atendimento comercial no fornecedor.",
+          "mode": "NULLABLE"
         },
         {
           "name": "contact_email",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "E-mail corporativo do contato comercial no fornecedor.",
+          "mode": "NULLABLE"
         },
         {
           "name": "address",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Logradouro, número e complemento do endereço físico.",
+          "mode": "NULLABLE"
         },
         {
           "name": "city",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Nome do município/cidade do endereço.",
+          "mode": "NULLABLE"
         },
         {
           "name": "state_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Sigla da unidade federativa/estado norte-americano (ex: IL, WI).",
+          "mode": "NULLABLE"
         },
         {
           "name": "zip_cd",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código de endereçamento postal bruto do fornecedor (campo legado a padronizar para zip_code na camada Silver).",
+          "mode": "NULLABLE"
         },
         {
           "name": "country_code",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Código ISO do país (ex: USA).",
+          "mode": "NULLABLE"
         },
         {
           "name": "phone_number",
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Número de telefone de contato no formato bruto.",
+          "mode": "NULLABLE"
         }
-      ]
+      ],
+      "description": "Cadastro bruto de fornecedores e fabricantes homologados, incluindo dados de contato comercial e endereço fiscal."
     }
-  }
+  },
+  "dataset_description": "Camada Raw (Landing/Bronze) do Open Lakehouse de Varejo Omnichannel em formato BigLake Apache Iceberg. Reúne dados brutos operacionais de clientes, produtos, PDV, estoques, movimentações, compras e logística."
 }
