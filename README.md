@@ -1,22 +1,29 @@
 # Workshop Agentic Data — Retail Open Lakehouse (`raw_staging_parquet` + Terraform)
 
-Repositório de bootstrap da **Camada Raw Iceberg-Ready** para o workshop hands-on de produtividade em Engenharia e Ciência de Dados com **Google Antigravity**, **Data Agent Kit**, **BigQuery Studio Pipelines**, **BigLake Apache Iceberg** e **Knowledge Catalog**.
+Repositório oficial de bootstrap da **Camada Raw Iceberg-Ready** para o workshop hands-on de produtividade em Engenharia e Ciência de Dados com **Google Antigravity**, **Data Agent Kit**, **BigQuery Studio Pipelines**, **BigLake Apache Iceberg**, **BigQuery Knowledge Graph**, **TimesFM 3.0** e **Knowledge Catalog**.
 
 ---
 
 ## Provisionamento em 1 Comando (Via Terminal)
 
-Para criar automaticamente o bucket GCS, a conexão BigLake, o dataset `retail_raw` e carregar as **19 tabelas BigLake Apache Iceberg** (já particionadas, clusterizadas, com snapshots `metadata.json` exportados e **100% das 19 tabelas e 136 colunas catalogadas com descrições de negócio**):
+Para criar automaticamente o bucket GCS (sem versionamento e sem *Soft Delete*), a conexão BigLake (`retail_iceberg_conn`), o dataset `retail_raw` e carregar em paralelo as **19 tabelas BigLake Apache Iceberg** (já particionadas, clusterizadas, com snapshots `metadata.json` exportados e **100% das 19 tabelas e 136 colunas catalogadas com descrições de negócio**):
 
 ```bash
 git clone https://github.com/rvpaes/workshop-agentic-data.git && cd workshop-agentic-data && ./setup_raw.sh
 ```
 
-> **Opções suportadas pelo `setup_raw.sh`:**
-> * `./setup_raw.sh` — Detecta automaticamente o `PROJECT_ID` (`config.json` ou `gcloud config get-value project`) e executa via **Terraform** (`terraform/`) se instalado (ex: Cloud Shell), ou faz fallback paralelo automático via **GCP APIs/CLI** (`scripts/provision_raw_fallback.py`) em máquinas locais sem Terraform.
-> * `./setup_raw.sh SEU_PROJECT_ID` — Define explicitamente o projeto alvo.
-> * `./setup_raw.sh --cli` — Força o provisionamento paralelo direto via CLI/API mesmo se o Terraform estiver instalado.
-> * `./setup_raw.sh --destroy` — Remove toda a infraestrutura da camada Raw gerenciada pelo Terraform.
+> **Idempotência / Retomada em caso de atualização:**
+> Se o diretório já foi clonado na máquina ou VM do laboratório, basta executar:
+> ```bash
+> git pull && ./setup_raw.sh
+> ```
+
+### Opções Suportadas pelo `./setup_raw.sh`
+
+* `./setup_raw.sh` — Detecta automaticamente o `PROJECT_ID` (`config.json` local/pai ou `gcloud config get-value project`) e executa via **Terraform** (`terraform/`) se instalado (ex: Cloud Shell), ou faz **fallback paralelo automático** via **Google Cloud APIs/CLI** (`scripts/provision_raw_fallback.py`) em máquinas/VMs sem Terraform (ex: containers Desktop do Qwiklabs).
+* `./setup_raw.sh SEU_PROJECT_ID` — Define explicitamente o projeto Google Cloud alvo.
+* `./setup_raw.sh --cli` — Força o provisionamento paralelo direto via APIs/CLI mesmo quando o Terraform estiver instalado.
+* `./setup_raw.sh --destroy` — Remove toda a infraestrutura da camada Raw gerenciada pelo Terraform.
 
 ### Uso Direto via Terraform Puro (Opcional)
 
@@ -25,6 +32,16 @@ cd terraform
 terraform init
 terraform apply -auto-approve -var="project_id=SEU_PROJECT_ID"
 ```
+
+---
+
+## Arquitetura e Garantias Técnicas (BigLake Iceberg & Qwiklabs Ready)
+
+1. **Bucket Lakehouse Compatível com Iceberg:** Configurado em `us-central1` com `uniform_bucket_level_access = true`, **versionamento de objetos desativado** (`--no-versioning`) e **política de Soft Delete limpa** (`--clear-soft-delete` / `retention_duration_seconds = 0`), evitando conflitos de retenção na reescrita de metadados Iceberg.
+2. **Conexão BigLake Resiliente (`bigqueryconnection` v1 + CLI Fallback):** Provisiona `retail_iceberg_conn` via endpoint oficial `v1` com header `X-Goog-User-Project` (compatível com credenciais de aluno do Qwiklabs) e fallback via `bq mk --connection`, aguardando propagação de IAM (`roles/storage.admin`) antes de criar as tabelas.
+3. **DML Idempotente Oficial para Iceberg:** Utiliza `CREATE TABLE IF NOT EXISTS` + `DELETE FROM ... WHERE TRUE` + `LOAD DATA INTO ... FROM FILES (format = 'PARQUET')` (visto que `TRUNCATE TABLE` e `LOAD DATA OVERWRITE` não são suportados em tabelas BigLake Apache Iceberg gerenciadas).
+4. **Exportação Resiliente de Metadados (`EXPORT TABLE METADATA`):** Dispara a geração dos snapshots `metadata.json` abertos no GCS e trata graciosamente ambientes de sandbox/Qwiklabs que restrinjam *slots* Enterprise de `EXPORT_METADATA`, mantendo o snapshot gerenciado 100% ativo no BigQuery.
+5. **Catalogação Automática End-to-End:** Sincroniza descrições executivas de negócio no dataset `retail_raw`, nas **19 tabelas** e em todas as **136 colunas** via DDL e API `tables.patch`, disponibilizando o contexto imediatamente para o **Knowledge Catalog** e para os agentes das próximas etapas.
 
 ---
 
@@ -40,9 +57,9 @@ workshop-agentic-data/
 │   ├── main.tf                         # Bucket, Connection, IAM, Dataset, 19 tabelas Iceberg e Jobs de carga
 │   └── outputs.tf
 ├── scripts/
-│   └── provision_raw_fallback.py       # Provisionador paralelo sem dependências externas (quando TF ausente)
+│   └── provision_raw_fallback.py       # Provisionador paralelo sem dependências externas (Qwiklabs/VM/Local)
 └── raw_staging_parquet/
-    ├── iceberg_tables_manifest.json    # Manifesto declarativo (schemas, descrições, PARTITION BY e CLUSTER BY)
+    ├── iceberg_tables_manifest.json    # Manifesto declarativo (schemas, 136 descrições, PARTITION BY e CLUSTER BY)
     └── *.parquet                       # 19 arquivos Parquet SNAPPY unificados prontos para BigLake Iceberg
 ```
 
@@ -71,6 +88,15 @@ workshop-agentic-data/
 | `location_master` | Cadastro | — | `location_type, state_code, location_id` |
 | `driver_master` | Cadastro | — | `driver_id, employee_id` |
 | `fleet_master` | Cadastro | — | `status, vehicle_id` |
+
+---
+
+## Solução de Problemas (Troubleshooting)
+
+* **`USER_PROJECT_DENIED` ou falta de credenciais no `gcloud`:**
+  Execute `gcloud auth login` e `gcloud auth application-default set-quota-project "$(gcloud config get-value project)"`, e rode novamente `./setup_raw.sh`.
+* **Propagação de IAM da conexão `retail_iceberg_conn`:**
+  O script aguarda automaticamente a propagação de `roles/storage.admin` no bucket GCS. Caso em algum ambiente a propagação leve mais tempo na 1ª tentativa, basta reexecutar `./setup_raw.sh` (100% idempotente).
 
 ---
 
