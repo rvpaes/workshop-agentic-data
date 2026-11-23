@@ -44,6 +44,10 @@ resource "google_storage_bucket" "lakehouse" {
     enabled = false
   }
 
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+
   depends_on = [google_project_service.apis]
 }
 
@@ -136,7 +140,7 @@ resource "google_bigquery_job" "load_and_export_iceberg" {
   query {
     use_legacy_sql = false
     query          = <<-EOT
-      TRUNCATE TABLE `${var.project_id}.${var.dataset_id}.${each.key}`;
+      DELETE FROM `${var.project_id}.${var.dataset_id}.${each.key}` WHERE TRUE;
       LOAD DATA INTO `${var.project_id}.${var.dataset_id}.${each.key}`
       FROM FILES (
         format = 'PARQUET',
