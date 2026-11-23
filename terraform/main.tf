@@ -72,16 +72,34 @@ resource "google_bigquery_connection" "iceberg_conn" {
   depends_on = [google_project_service.apis]
 }
 
-# 5. Grant Storage Admin on Lakehouse bucket to the BigLake Connection Service Account
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+# 5. Grant Storage Admin on Lakehouse bucket to BigLake Connection SA & Default Compute SA
 resource "google_storage_bucket_iam_member" "iceberg_conn_storage_admin" {
   bucket = google_storage_bucket.lakehouse.name
   role   = "roles/storage.admin"
   member = "serviceAccount:${google_bigquery_connection.iceberg_conn.cloud_resource[0].service_account_id}"
 }
 
+resource "google_storage_bucket_iam_member" "default_compute_storage_admin" {
+  bucket = google_storage_bucket.lakehouse.name
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_bigquery_connection_iam_member" "default_compute_conn_admin" {
+  project       = var.project_id
+  location      = var.region
+  connection_id = google_bigquery_connection.iceberg_conn.connection_id
+  role          = "roles/bigquery.connectionAdmin"
+  member        = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+
 # Wait for IAM propagation before creating BigLake Iceberg tables
 resource "time_sleep" "wait_for_iam_propagation" {
-  create_duration = "45s"
+  create_duration = "20s"
   depends_on      = [google_storage_bucket_iam_member.iceberg_conn_storage_admin]
 }
 
@@ -146,7 +164,6 @@ resource "google_bigquery_job" "load_and_export_iceberg" {
         format = 'PARQUET',
         uris = ['gs://${google_storage_bucket.lakehouse.name}/staging/${each.key}.parquet']
       );
-      EXPORT TABLE METADATA FROM `${var.project_id}.${var.dataset_id}.${each.key}`;
     EOT
   }
 

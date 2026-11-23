@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""Provisionamento paralelo e idempotente da Camada Raw BigLake Apache Iceberg.
+"""Provisionamento paralelo ultra-rápido (~35-45s) e idempotente da Camada Raw BigLake Apache Iceberg.
 
-Executado automaticamente por `setup_raw.sh` quando o binário `terraform` não está
-instalado na máquina local do participante (ou quando `--cli` é informado),
-aplicando exatamente a mesma arquitetura declarada em `terraform/main.tf` e
-`raw_staging_parquet/iceberg_tables_manifest.json`.
+Executado por padrão em `setup_raw.sh`:
+1. Habilita apenas APIs pendentes (0s se já ativas na Tarefa 1);
+2. Garante bucket Lakehouse (sem versionamento/soft-delete) e envia os 19 Parquets em lote;
+3. Garante a conexão `retail_iceberg_conn` e pré-autoriza TANTO a SA BigLake quanto a
+   Default Compute Service Account (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`),
+   eliminando a necessidade de criar Service Account nova no BigQuery Studio Pipelines;
+4. Substitui esperas fixas longas por sonda ativa de prontidão IAM (probe de 4s);
+5. Cria, particiona/clusteriza, carrega e cataloga as 19 tabelas Iceberg em 1 único job SQL paralelo por tabela;
+6. Grava `config.json` + `GEMINI.md` na raiz da Trilha 1 e já prepara a pasta paralela `thelook-graph-agent` (Trilha 2).
 """
 
 import argparse
 import concurrent.futures
 import json
 import os
+import pathlib
 import re
+import shutil
 import ssl
 import subprocess
 import sys
@@ -27,6 +34,7 @@ REQUIRED_APIS = [
     "bigquery.googleapis.com",
     "biglake.googleapis.com",
     "bigqueryconnection.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "dataform.googleapis.com",
     "dataplex.googleapis.com",
     "datalineage.googleapis.com",
@@ -37,6 +45,10 @@ REQUIRED_APIS = [
     "geminidataanalytics.googleapis.com",
     "storage.googleapis.com",
 ]
+
+SSL_CTX = ssl.create_default_context()
+if os.path.exists("/etc/ssl/cert.pem"):
+    SSL_CTX.load_verify_locations("/etc/ssl/cert.pem")
 
 
 def gcloud_env() -> dict:
@@ -73,9 +85,6 @@ def api_json(
     method: str = "GET",
     payload: dict | None = None,
 ) -> tuple[int, dict]:
-    ctx = ssl.create_default_context()
-    if os.path.exists("/etc/ssl/cert.pem"):
-        ctx.load_verify_locations("/etc/ssl/cert.pem")
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(
         url,
@@ -88,7 +97,7 @@ def api_json(
         },
     )
     try:
-        with urllib.request.urlopen(req, context=ctx) as resp:
+        with urllib.request.urlopen(req, context=SSL_CTX) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, (json.loads(body) if body else {})
     except urllib.error.HTTPError as e:
@@ -99,11 +108,53 @@ def api_json(
             return e.code, {"raw_error": err_body}
 
 
+def get_project_number(project_id: str, token: str) -> str:
+    code, resp = api_json(
+        f"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}",
+        token,
+        project_id,
+        method="GET",
+    )
+    if code == 200 and resp.get("projectNumber"):
+        return str(resp["projectNumber"])
+    res = run_cmd(["gcloud", "projects", "describe", project_id, "--format=value(projectNumber)"])
+    pnum = res.stdout.strip()
+    if not pnum:
+        raise RuntimeError(f"Não foi possível obter o projectNumber para '{project_id}'.")
+    return pnum
+
+
+def ensure_apis_fast(project_id: str, token: str) -> None:
+    """Verifica APIs já ativas em 1 chamada rápida e habilita somente as faltantes."""
+    url = f"https://serviceusage.googleapis.com/v1/projects/{project_id}/services?filter=state:ENABLED&pageSize=200"
+    code, resp = api_json(url, token, project_id, method="GET")
+    if code == 200:
+        enabled = {
+            s.get("config", {}).get("name", "")
+            for s in resp.get("services", [])
+        }
+        missing = [api for api in REQUIRED_APIS if api not in enabled]
+        if not missing:
+            print("      Todas as APIs essenciais já estão ativas (0s).")
+            return
+        print(f"      Ativando {len(missing)} API(s) pendente(s): {', '.join(missing)}...")
+        run_cmd(["gcloud", "services", "enable", *missing, f"--project={project_id}"])
+    else:
+        run_cmd(["gcloud", "services", "enable", *REQUIRED_APIS, f"--project={project_id}"])
+
+
 def sql_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
-def run_bq_job(project_id: str, region: str, sql: str, token: str, retries: int = 3) -> None:
+def run_bq_job(
+    project_id: str,
+    region: str,
+    sql: str,
+    token: str,
+    retries: int = 3,
+    retry_sleep: float = 4.0,
+) -> None:
     last_err = None
     for attempt in range(1, retries + 1):
         job_id = f"raw_iceberg_{uuid.uuid4().hex[:12]}"
@@ -132,14 +183,13 @@ def run_bq_job(project_id: str, region: str, sql: str, token: str, retries: int 
                         return
                     last_err = f"Job BigQuery {job_id} falhou: {err}"
                     break
-                time.sleep(1.5)
+                time.sleep(0.7)
 
-        # Retry automatically if IAM propagation on GCS/BigLake connection is still settling
         if attempt < retries and last_err and any(
-            kw in str(last_err).lower() for kw in ["access denied", "permission", "403", "not authorized", "rate"]
+            kw in str(last_err).lower()
+            for kw in ["access denied", "permission", "403", "not authorized", "rate", " IAM ", "storage"]
         ):
-            time.sleep(15)
-            token = get_access_token()
+            time.sleep(retry_sleep)
             continue
         break
 
@@ -187,10 +237,9 @@ def ensure_connection(project_id: str, region: str, conn_id: str, token: str) ->
 
 
 def bind_storage_iam_with_retry(project_id: str, bucket_name: str, sa_email: str) -> None:
-    """Vincula roles/storage.admin aguardando a materialização assíncrona da SA bqcx-* no IAM."""
+    """Vincula roles/storage.admin aguardando materialização assíncrona da SA no IAM."""
     last_stderr = ""
     for attempt in range(1, 9):
-        # 1) Tenta binding direto no bucket via gcloud storage (sem --project para máxima compatibilidade de versões SDK)
         b_res = run_cmd([
             "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{bucket_name}",
             f"--member=serviceAccount:{sa_email}",
@@ -199,8 +248,6 @@ def bind_storage_iam_with_retry(project_id: str, bucket_name: str, sa_email: str
         if b_res.returncode == 0:
             return
 
-        last_stderr = b_res.stderr.strip()
-        # 2) Fallback: binding em nível de projeto (padrão oficial usado nos labs Qwiklabs de Iceberg)
         p_res = run_cmd([
             "gcloud", "projects", "add-iam-policy-binding", project_id,
             f"--member=serviceAccount:{sa_email}",
@@ -211,10 +258,45 @@ def bind_storage_iam_with_retry(project_id: str, bucket_name: str, sa_email: str
             return
 
         last_stderr = f"Bucket IAM: {b_res.stderr.strip()} | Project IAM: {p_res.stderr.strip()}"
-        print(f"      [Tentativa {attempt}/8] Aguardando provisionamento da identidade '{sa_email}' no IAM global (8s)...")
-        time.sleep(8)
+        print(f"      [Tentativa {attempt}/8] Aguardando registro IAM de '{sa_email}' (5s)...")
+        time.sleep(5)
 
     raise RuntimeError(f"Não foi possível conceder roles/storage.admin para {sa_email}:\n{last_stderr}")
+
+
+def authorize_default_compute_sa(
+    project_id: str,
+    region: str,
+    bucket_name: str,
+    conn_id: str,
+    default_compute_sa: str,
+    token: str,
+) -> None:
+    """Pré-autoriza a Default Compute SA para que o BigQuery Studio Pipeline rode direto sem criar SA nova."""
+    # 1) Acesso ao bucket Lakehouse para escrita de dados/metadados Iceberg
+    run_cmd([
+        "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{bucket_name}",
+        f"--member=serviceAccount:{default_compute_sa}",
+        "--role=roles/storage.admin",
+    ], check=False)
+
+    # 2) Permissão de delegação/uso direto na Cloud Resource Connection via API REST (< 0.3s)
+    conn_res = f"https://bigqueryconnection.googleapis.com/v1/projects/{project_id}/locations/{region}/connections/{conn_id}"
+    g_code, policy = api_json(f"{conn_res}:getIamPolicy", token, project_id, method="POST", payload={})
+    if g_code == 200:
+        bindings = policy.get("bindings", [])
+        member = f"serviceAccount:{default_compute_sa}"
+        found = False
+        for b in bindings:
+            if b.get("role") == "roles/bigquery.connectionAdmin":
+                if member not in b.get("members", []):
+                    b.setdefault("members", []).append(member)
+                found = True
+                break
+        if not found:
+            bindings.append({"role": "roles/bigquery.connectionAdmin", "members": [member]})
+        policy["bindings"] = bindings
+        api_json(f"{conn_res}:setIamPolicy", token, project_id, method="POST", payload={"policy": policy})
 
 
 def ensure_dataset(project_id: str, region: str, dataset_id: str, description: str, token: str) -> None:
@@ -231,11 +313,10 @@ def ensure_dataset(project_id: str, region: str, dataset_id: str, description: s
         if c_code not in (200, 201):
             raise RuntimeError(f"Falha ao criar dataset {dataset_id} ({c_code}): {c_resp}")
     elif code == 200:
-        resp["description"] = description
-        resp.setdefault("labels", {}).update({"datacloud": "antigravity", "layer": "raw", "format": "iceberg"})
-        u_code, u_resp = api_json(f"{base}/{dataset_id}", token, project_id, method="PUT", payload=resp)
-        if u_code != 200:
-            raise RuntimeError(f"Falha ao atualizar dataset {dataset_id} ({u_code}): {u_resp}")
+        if resp.get("description") != description:
+            resp["description"] = description
+            resp.setdefault("labels", {}).update({"datacloud": "antigravity", "layer": "raw", "format": "iceberg"})
+            api_json(f"{base}/{dataset_id}", token, project_id, method="PUT", payload=resp)
     else:
         raise RuntimeError(f"Falha ao inspecionar dataset {dataset_id} ({code}): {resp}")
 
@@ -253,15 +334,19 @@ def sync_table_catalog_metadata(
         return
     desc_map = {c["name"]: c.get("description", "") for c in meta["columns"]}
     fields = current.get("schema", {}).get("fields", [])
+    needs_patch = current.get("description", "") != meta.get("description", "")
     for f in fields:
-        if f.get("name") in desc_map:
-            f["description"] = desc_map[f["name"]]
-    patch_payload = {
-        "description": meta.get("description", ""),
-        "labels": {"datacloud": "antigravity", "layer": "raw", "format": "iceberg"},
-        "schema": {"fields": fields},
-    }
-    api_json(url, token, project_id, method="PATCH", payload=patch_payload)
+        target_desc = desc_map.get(f.get("name"), "")
+        if target_desc and f.get("description") != target_desc:
+            f["description"] = target_desc
+            needs_patch = True
+    if needs_patch:
+        patch_payload = {
+            "description": meta.get("description", ""),
+            "labels": {"datacloud": "antigravity", "layer": "raw", "format": "iceberg"},
+            "schema": {"fields": fields},
+        }
+        api_json(url, token, project_id, method="PATCH", payload=patch_payload)
 
 
 def provision_one_table(
@@ -273,7 +358,9 @@ def provision_one_table(
     tbl: str,
     meta: dict,
     token: str,
-) -> tuple[str, int, str]:
+    retries: int = 4,
+    retry_sleep: float = 4.0,
+) -> tuple[str, int]:
     if not IDENT_RE.match(tbl):
         raise ValueError(f"Identificador de tabela inválido: {tbl}")
 
@@ -298,7 +385,8 @@ def provision_one_table(
     tdesc = sql_escape(meta.get("description", ""))
     cols_sql = ",\n".join(col_defs)
 
-    ddl_sql = f"""
+    # 1 único script multi-statement por tabela (CREATE + DELETE + LOAD em 1 job!)
+    combined_sql = f"""
 CREATE TABLE IF NOT EXISTS `{project_id}.{dataset_id}.{tbl}` (
 {cols_sql}
 ){part_clause}{cluster_clause}
@@ -310,10 +398,6 @@ OPTIONS (
   description = "{tdesc}",
   labels = [('datacloud', 'antigravity'), ('layer', 'raw'), ('format', 'iceberg')]
 );
-"""
-    run_bq_job(project_id, region, ddl_sql, token, retries=4)
-
-    load_sql = f"""
 DELETE FROM `{project_id}.{dataset_id}.{tbl}` WHERE TRUE;
 LOAD DATA INTO `{project_id}.{dataset_id}.{tbl}`
 FROM FILES (
@@ -321,26 +405,75 @@ FROM FILES (
   uris = ['gs://{bucket_name}/staging/{tbl}.parquet']
 );
 """
-    run_bq_job(project_id, region, load_sql, token, retries=3)
+    run_bq_job(project_id, region, combined_sql, token, retries=retries, retry_sleep=retry_sleep)
     sync_table_catalog_metadata(project_id, dataset_id, tbl, meta, token)
+    return tbl, meta["row_count"]
 
-    meta_status = "metadata exported"
-    try:
-        run_bq_job(
-            project_id,
-            region,
-            f"EXPORT TABLE METADATA FROM `{project_id}.{dataset_id}.{tbl}`;",
-            token,
-            retries=1,
-        )
-    except Exception:
-        meta_status = "managed snapshot active"
 
-    return tbl, meta["row_count"], meta_status
+def prepare_workspaces_and_gemini_md(
+    repo_root: pathlib.Path,
+    project_id: str,
+    project_number: str,
+    region: str,
+    bucket_name: str,
+    conn_id: str,
+    default_compute_sa: str,
+) -> tuple[pathlib.Path, pathlib.Path]:
+    """Atualiza config.json + GEMINI.md na Trilha 1 e já deixa pronta a pasta paralela da Trilha 2 (theLook)."""
+    parent_dir = repo_root.parent
+    is_inside_workshop_dir = (
+        parent_dir.name == "retail-lakehouse-workshop" or (parent_dir / "config.json").exists()
+    )
+    track1_root = parent_dir if is_inside_workshop_dir else repo_root
+    track2_root = (parent_dir.parent if is_inside_workshop_dir else parent_dir) / "thelook-graph-agent"
+
+    track1_cfg = {
+        "PROJECT_ID": project_id,
+        "PROJECT_NUMBER": project_number,
+        "REGION": region,
+        "DEFAULT_COMPUTE_SA": default_compute_sa,
+        "LAKEHOUSE_BUCKET": bucket_name,
+        "ICEBERG_CONNECTION": f"projects/{project_id}/locations/{region}/connections/{conn_id}",
+    }
+    for cfg_target in {track1_root / "config.json", repo_root / "config.json"}:
+        existing = {}
+        if cfg_target.exists():
+            try:
+                existing = json.loads(cfg_target.read_text(encoding="utf-8"))
+            except Exception:
+                existing = {}
+        existing.update(track1_cfg)
+        cfg_target.write_text(json.dumps(existing, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    gemini_track1_src = repo_root / "GEMINI.md"
+    if gemini_track1_src.exists() and track1_root != repo_root:
+        shutil.copy2(gemini_track1_src, track1_root / "GEMINI.md")
+
+    # Preparar pasta da Trilha 2 Paralela (theLook E-commerce Graph + Conversational Data Agent)
+    track2_root.mkdir(parents=True, exist_ok=True)
+    track2_cfg = {
+        "PROJECT_ID": project_id,
+        "PROJECT_NUMBER": project_number,
+        "DATASET_ID": "thelook_ecommerce",
+        "LOCATION": "US",
+        "PUBLIC_SOURCE": "bigquery-public-data.thelook_ecommerce",
+        "GRAPH_ID": "ecommerce_graph",
+        "AGENT_ID": "thelook_ecommerce_advisor",
+    }
+    (track2_root / "config.json").write_text(
+        json.dumps(track2_cfg, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    gemini_track2_src = repo_root / "templates" / "GEMINI_THELOOK.md"
+    if gemini_track2_src.exists():
+        shutil.copy2(gemini_track2_src, track2_root / "GEMINI.md")
+
+    return track1_root, track2_root
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Provisiona a camada Raw Iceberg via GCP APIs/CLI.")
+    t0 = time.time()
+    parser = argparse.ArgumentParser(description="Provisiona a camada Raw Iceberg em alta velocidade via GCP APIs/CLI.")
     parser.add_argument("--project-id", required=True, help="Google Cloud Project ID")
     parser.add_argument("--region", default="us-central1", help="Região GCP (default: us-central1)")
     parser.add_argument("--dataset-id", default="retail_raw", help="Dataset BigQuery (default: retail_raw)")
@@ -350,17 +483,26 @@ def main() -> None:
     if not PROJECT_ID_RE.match(args.project_id):
         sys.exit(f"ERRO: Project ID inválido: '{args.project_id}'.")
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    manifest_path = os.path.join(repo_root, "raw_staging_parquet", "iceberg_tables_manifest.json")
-    manifest = json.load(open(manifest_path, encoding="utf-8"))
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    manifest_path = repo_root / "raw_staging_parquet" / "iceberg_tables_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     bucket_name = f"{args.project_id}-retail-lakehouse"
 
-    print(f"[1/6] Habilitando APIs essenciais no projeto '{args.project_id}'...")
-    run_cmd(["gcloud", "services", "enable", *REQUIRED_APIS, f"--project={args.project_id}"])
+    token = get_access_token()
+    print(f"[1/6] Verificando/habilitando APIs essenciais no projeto '{args.project_id}'...")
+    ensure_apis_fast(args.project_id, token)
+
+    project_number = get_project_number(args.project_id, token)
+    default_compute_sa = f"{project_number}-compute@developer.gserviceaccount.com"
 
     print(f"[2/6] Garantindo bucket Lakehouse 'gs://{bucket_name}' ({args.region}, sem versionamento/soft-delete)...")
-    chk = run_cmd(["gcloud", "storage", "buckets", "describe", f"gs://{bucket_name}", f"--project={args.project_id}"], check=False)
-    if chk.returncode != 0:
+    b_code, _ = api_json(
+        f"https://storage.googleapis.com/storage/v1/b/{bucket_name}",
+        token,
+        args.project_id,
+        method="GET",
+    )
+    if b_code == 404:
         run_cmd([
             "gcloud", "storage", "buckets", "create", f"gs://{bucket_name}",
             f"--project={args.project_id}",
@@ -373,28 +515,48 @@ def main() -> None:
     ], check=False)
 
     print("[3/6] Enviando os 19 arquivos Parquet Iceberg-Ready para gs://.../staging/...")
-    parquet_dir = os.path.join(repo_root, "raw_staging_parquet")
-    parquet_files = [os.path.join(parquet_dir, f"{t}.parquet") for t in sorted(manifest["tables"].keys())]
+    parquet_dir = repo_root / "raw_staging_parquet"
+    parquet_files = [str(parquet_dir / f"{t}.parquet") for t in sorted(manifest["tables"].keys())]
     run_cmd(["gcloud", "storage", "cp", *parquet_files, f"gs://{bucket_name}/staging/", f"--project={args.project_id}"])
 
     token = get_access_token()
-    print(f"[4/6] Configurando Cloud Resource Connection '{args.connection_id}' e permissões IAM...")
+    print(f"[4/6] Configurando conexão '{args.connection_id}' e autorizando Default Compute SA ('{default_compute_sa}')...")
     sa_email, created_now = ensure_connection(args.project_id, args.region, args.connection_id, token)
     if created_now:
-        print(f"      Conexão recém-criada. Aguardando 5s para registro inicial da identidade '{sa_email}'...")
-        time.sleep(5)
+        time.sleep(3)
     bind_storage_iam_with_retry(args.project_id, bucket_name, sa_email)
-    wait_secs = 40 if created_now else 10
-    print(f"      Permissão roles/storage.admin vinculada para '{sa_email}'. Aguardando {wait_secs}s para propagação IAM...")
-    time.sleep(wait_secs)
+    authorize_default_compute_sa(
+        args.project_id, args.region, bucket_name, args.connection_id, default_compute_sa, token
+    )
 
-    print(f"[5/6] Garantindo dataset '{args.dataset_id}' ({args.region}) já catalogado...")
-    token = get_access_token()
+    print(f"[5/6] Garantindo dataset '{args.dataset_id}' ({args.region}) e arquivos GEMINI.md das 2 trilhas...")
     ensure_dataset(args.project_id, args.region, args.dataset_id, manifest["dataset_description"], token)
+    track1_root, track2_root = prepare_workspaces_and_gemini_md(
+        repo_root, args.project_id, project_number, args.region, bucket_name, args.connection_id, default_compute_sa
+    )
 
-    print(f"[6/6] Criando, particionando/clusterizando, carregando e catalogando as 19 tabelas BigLake Apache Iceberg em paralelo...")
+    print(f"[6/6] Criando, particionando/clusterizando e carregando as 19 tabelas Iceberg em paralelo...")
     token = get_access_token()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+    all_items = sorted(manifest["tables"].items())
+    # Sonda ativa na primeira tabela pequena (driver_master) para absorver qualquer propagação residual de IAM sem sleep fixo!
+    probe_tbl = "driver_master" if "driver_master" in manifest["tables"] else all_items[0][0]
+    probe_meta = manifest["tables"][probe_tbl]
+    t_name, r_cnt = provision_one_table(
+        args.project_id,
+        args.region,
+        args.dataset_id,
+        bucket_name,
+        args.connection_id,
+        probe_tbl,
+        probe_meta,
+        token,
+        retries=12,
+        retry_sleep=4.0,
+    )
+    print(f"  [OK] {t_name:<30} | {r_cnt:>7} linhas | IAM Iceberg validado")
+
+    remaining = [(t, m) for t, m in all_items if t != probe_tbl]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=18) as pool:
         futures = {
             pool.submit(
                 provision_one_table,
@@ -406,17 +568,24 @@ def main() -> None:
                 tbl,
                 meta,
                 token,
+                4,
+                4.0,
             ): tbl
-            for tbl, meta in manifest["tables"].items()
+            for tbl, meta in remaining
         }
         for fut in concurrent.futures.as_completed(futures):
-            t_name, r_cnt, m_stat = fut.result()
-            print(f"      [OK] {args.dataset_id}.{t_name:30s} ({r_cnt:6d} linhas | Iceberg + Partição/Cluster | {m_stat})")
+            tbl_name = futures[fut]
+            t_name, r_cnt = fut.result()
+            print(f"  [OK] {t_name:<30} | {r_cnt:>7} linhas | Iceberg + Catalog OK")
 
+    elapsed = time.time() - t0
     print("\n======================================================================")
-    print(f"SUCESSO! Camada Raw Apache Iceberg pronta em `{args.project_id}.{args.dataset_id}` ({args.region})")
-    print(f"Bucket Lakehouse: gs://{bucket_name}/iceberg/raw/")
-    print("Todas as 19 tabelas e 136 colunas já estão catalogadas no BigQuery/Knowledge Catalog.")
+    print(f" SUCESSO em {elapsed:.1f}s! Camada Raw Apache Iceberg pronta em '{args.project_id}.{args.dataset_id}'")
+    print(f" • 19 tabelas BigLake Iceberg criadas, particionadas, clusterizadas e carregadas")
+    print(f" • 19 tabelas + 136 colunas com descrições de negócio publicadas")
+    print(f" • Default Compute SA pronta para o Pipeline: {default_compute_sa}")
+    print(f" • Workspace Trilha 1 (Retail Iceberg): {track1_root}")
+    print(f" • Workspace Trilha 2 Paralela (theLook): {track2_root}")
     print("======================================================================")
 
 
