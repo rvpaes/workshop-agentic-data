@@ -9,7 +9,7 @@ Executado por padrão em `setup_raw.sh`:
    eliminando a necessidade de criar Service Account nova no BigQuery Studio Pipelines;
 4. Substitui esperas fixas longas por sonda ativa de prontidão IAM (probe de 4s);
 5. Cria, particiona/clusteriza, carrega e cataloga as 19 tabelas Iceberg em 1 único job SQL paralelo por tabela;
-6. Grava `config.json` + `GEMINI.md` na raiz da Trilha 1 e já prepara a pasta paralela `thelook-graph-agent` (Trilha 2).
+6. Atualiza `config.json` com `DEFAULT_COMPUTE_SA` e cria a pasta limpa `thelook-graph-agent` para a Trilha 2 paralela.
 """
 
 import argparse
@@ -410,7 +410,7 @@ FROM FILES (
     return tbl, meta["row_count"]
 
 
-def prepare_workspaces_and_gemini_md(
+def prepare_workspaces(
     repo_root: pathlib.Path,
     project_id: str,
     project_number: str,
@@ -419,7 +419,7 @@ def prepare_workspaces_and_gemini_md(
     conn_id: str,
     default_compute_sa: str,
 ) -> tuple[pathlib.Path, pathlib.Path]:
-    """Atualiza config.json + GEMINI.md na Trilha 1 e já deixa pronta a pasta paralela da Trilha 2 (theLook)."""
+    """Atualiza config.json na Trilha 1 e cria a pasta paralela limpa da Trilha 2 (theLook)."""
     parent_dir = repo_root.parent
     is_inside_workshop_dir = (
         parent_dir.name == "retail-lakehouse-workshop" or (parent_dir / "config.json").exists()
@@ -445,28 +445,16 @@ def prepare_workspaces_and_gemini_md(
         existing.update(track1_cfg)
         cfg_target.write_text(json.dumps(existing, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    gemini_track1_src = repo_root / "GEMINI.md"
-    if gemini_track1_src.exists() and track1_root != repo_root:
-        shutil.copy2(gemini_track1_src, track1_root / "GEMINI.md")
-
-    # Preparar pasta da Trilha 2 Paralela (theLook E-commerce Graph + Conversational Data Agent)
+    # Cria pasta limpa para abrir a 2ª janela paralela no Antigravity (Trilha 2: theLook)
     track2_root.mkdir(parents=True, exist_ok=True)
     track2_cfg = {
         "PROJECT_ID": project_id,
         "PROJECT_NUMBER": project_number,
-        "DATASET_ID": "thelook_ecommerce",
-        "LOCATION": "US",
-        "PUBLIC_SOURCE": "bigquery-public-data.thelook_ecommerce",
-        "GRAPH_ID": "ecommerce_graph",
-        "AGENT_ID": "thelook_ecommerce_advisor",
     }
     (track2_root / "config.json").write_text(
         json.dumps(track2_cfg, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    gemini_track2_src = repo_root / "templates" / "GEMINI_THELOOK.md"
-    if gemini_track2_src.exists():
-        shutil.copy2(gemini_track2_src, track2_root / "GEMINI.md")
 
     return track1_root, track2_root
 
@@ -529,9 +517,9 @@ def main() -> None:
         args.project_id, args.region, bucket_name, args.connection_id, default_compute_sa, token
     )
 
-    print(f"[5/6] Garantindo dataset '{args.dataset_id}' ({args.region}) e arquivos GEMINI.md das 2 trilhas...")
+    print(f"[5/6] Garantindo dataset '{args.dataset_id}' ({args.region}) já catalogado...")
     ensure_dataset(args.project_id, args.region, args.dataset_id, manifest["dataset_description"], token)
-    track1_root, track2_root = prepare_workspaces_and_gemini_md(
+    track1_root, track2_root = prepare_workspaces(
         repo_root, args.project_id, project_number, args.region, bucket_name, args.connection_id, default_compute_sa
     )
 

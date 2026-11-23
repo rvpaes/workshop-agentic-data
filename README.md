@@ -30,7 +30,7 @@ git clone https://github.com/rvpaes/workshop-agentic-data.git && cd workshop-age
 
 ### Opções Suportadas pelo `./setup_raw.sh`
 
-* `./setup_raw.sh` — **Execução Turbo (~35–45s, padrão):** Detecta automaticamente o `PROJECT_ID` (`config.json` local/pai ou `gcloud config get-value project`), provisiona em paralelo via Google Cloud REST APIs (18 workers) as 19 tabelas `retail_raw` em BigLake Iceberg já catalogadas, **pré-autoriza a Default Compute Service Account** (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`) para que o BigQuery Studio Pipeline rode sem precisar criar Service Account nova, grava `GEMINI.md` na raiz da Trilha 1 e já prepara a pasta paralela `thelook-graph-agent` (Trilha 2).
+* `./setup_raw.sh` — **Execução Turbo (~35–45s, padrão):** Detecta automaticamente o `PROJECT_ID` (`config.json` local/pai ou `gcloud config get-value project`), provisiona em paralelo via Google Cloud REST APIs (18 workers) as 19 tabelas `retail_raw` em BigLake Iceberg já catalogadas e **pré-autoriza a Default Compute Service Account** (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`) para que o BigQuery Studio Pipeline rode direto sem precisar criar Service Account nova.
 * `./setup_raw.sh SEU_PROJECT_ID` — Define explicitamente o projeto Google Cloud alvo.
 * `./setup_raw.sh --terraform` — Opcional: provisiona via módulo declarativo **Terraform** (`terraform/`).
 * `./setup_raw.sh --destroy` — Remove toda a infraestrutura da camada Raw gerenciada pelo Terraform.
