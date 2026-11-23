@@ -12,6 +12,16 @@ Para criar automaticamente o bucket GCS (sem versionamento e sem *Soft Delete*),
 git clone https://github.com/rvpaes/workshop-agentic-data.git && cd workshop-agentic-data && ./setup_raw.sh
 ```
 
+### Como validar no Console do BigQuery após rodar o comando
+
+1. No **Google Cloud Console**, acesse **Navigation menu (☰) > BigQuery > Studio**.
+2. No painel lateral esquerdo **Data (Explorer)**, expanda o ID do seu projeto (clique em **Refresh** se necessário):
+   - Em **Connections**, verifique a criação da conexão `us-central1.retail_iceberg_conn`;
+   - Expanda o dataset **`retail_raw`** e confirme que todas as **19 tabelas** (`customer_master` até `supplier_master`) foram criadas.
+3. Clique em **`customer_master`** (ou **`pos_transactions`**) e confira:
+   - **Aba `Schema`:** Todos os campos já exibem a coluna **Description** preenchida em português (sincronizada com o Knowledge Catalog);
+   - **Aba `Details`:** Confirme sob *BigLake configuration / Table info* o formato **`ICEBERG`** (`PARQUET` no bucket GCS) e as configurações de **Clustered by** e **Partitioned by**.
+
 > **Idempotência / Retomada em caso de atualização:**
 > Se o diretório já foi clonado na máquina ou VM do laboratório, basta executar:
 > ```bash
